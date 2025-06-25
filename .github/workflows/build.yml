@@ -28,14 +28,11 @@ jobs:
           target: esp32c6
 
       - name: Build project
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py build
-
-      - name: Check binary size
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py size
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.ESP_IDF_VERSION }}
+          target: esp32c6
+          command: 'idf.py build'
 
       - name: Test with Wokwi
         uses: wokwi/wokwi-ci-action@v1
