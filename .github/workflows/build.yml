@@ -1,0 +1,56 @@
+name: Build Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  ESP_IDF_VERSION: 'v5.5-dev'
+  PROJECT_NAME: 'monoscope'
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.ESP_IDF_VERSION }}
+          target: esp32c6
+
+      - name: Build project
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py build
+
+      - name: Check binary size
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py size
+
+      - name: Test with Wokwi
+        uses: wokwi/wokwi-ci-action@v1
+        with:
+          token: ${{ secrets.WOKWI_CLI_TOKEN }}
+          path: /
+          expect_text: 'Drawing monoscope TV test pattern'
+          timeout: 10000
+
+      - name: Upload build artifacts (for testing)
+        uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: test-build-${{ github.sha }}
+          path: |
+            build/${{ env.PROJECT_NAME }}.bin
+            build/${{ env.PROJECT_NAME }}.elf
+          retention-days: 1

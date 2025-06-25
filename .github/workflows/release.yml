@@ -1,0 +1,269 @@
+
+name: Build and Release ESP32-C6 Firmware
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v2.1.3, etc.
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  ESP_IDF_VERSION: 'v5.5-dev'
+  PROJECT_NAME: 'monoscope'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.ESP_IDF_VERSION }}
+          target: esp32c6
+
+      - name: Build project
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py build
+
+      - name: Create build info
+        run: |
+          echo "Build Date: $(date)" > build_info.txt
+          echo "ESP-IDF Version: ${{ env.ESP_IDF_VERSION }}" >> build_info.txt
+          echo "Target: ESP32-C6" >> build_info.txt
+          echo "Git Commit: ${{ github.sha }}" >> build_info.txt
+          echo "Git Tag: ${{ github.ref_name }}" >> build_info.txt
+          
+          # Get firmware size info
+          . $IDF_PATH/export.sh
+          idf.py size >> build_info.txt
+
+      - name: Create merged firmware binary
+        run: |
+          . $IDF_PATH/export.sh
+          
+          # Create a complete firmware image that can be flashed to 0x0
+          esptool.py --chip esp32c6 merge_bin -o build/monoscope-complete.bin \
+            --flash_mode dio --flash_freq 80m --flash_size 4MB \
+            0x0 build/bootloader/bootloader.bin \
+            0x8000 build/partition_table/partition-table.bin \
+            0x10000 build/${{ env.PROJECT_NAME }}.bin
+
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p release
+          
+          # Copy firmware files
+          cp build/${{ env.PROJECT_NAME }}.bin release/
+          cp build/${{ env.PROJECT_NAME }}.elf release/
+          cp build/monoscope-complete.bin release/
+          cp build/bootloader/bootloader.bin release/
+          cp build/partition_table/partition-table.bin release/
+          cp build_info.txt release/
+          
+          # Create README for release
+          cat > release/README.txt << 'EOF'
+          ESP32-C6 Monoscope TV Test Pattern Firmware
+          ==========================================
+          
+          Files included:
+          - monoscope-complete.bin    : Complete firmware image (flash to 0x0)
+          - monoscope.bin            : Application binary only
+          - bootloader.bin           : Bootloader binary
+          - partition-table.bin      : Partition table
+          - monoscope.elf            : ELF file for debugging
+          - build_info.txt           : Build information
+          - flash_*.sh/bat           : Flash scripts for convenience
+          
+          Quick Flash (Recommended):
+          =========================
+          esptool.py --chip esp32c6 --port /dev/ttyUSB0 write_flash 0x0 monoscope-complete.bin
+          
+          Or use the provided flash scripts:
+          - Linux/Mac: ./flash.sh /dev/ttyUSB0
+          - Windows: flash.bat COM3
+          
+          Manual Flash (Advanced):
+          ========================
+          esptool.py --chip esp32c6 --port /dev/ttyUSB0 --baud 460800 write_flash \
+            0x0 bootloader.bin \
+            0x8000 partition-table.bin \
+            0x10000 monoscope.bin
+          
+          Hardware Requirements:
+          =====================
+          - ESP32-C6 development board
+          - ILI9341 320x240 TFT display (SPI)
+          - Connections as per project README.md
+          EOF
+          
+          # Create flash script for ESP32-C6
+          cat > release/flash.sh << 'EOF'
+          #!/bin/bash
+          # Flash script for ESP32-C6 Monoscope TV Pattern
+          # Usage: ./flash.sh [PORT]
+          
+          PORT=${1:-/dev/ttyUSB0}
+          
+          echo "======================================"
+          echo "ESP32-C6 Monoscope TV Pattern Flasher"
+          echo "======================================"
+          echo ""
+          echo "Port: $PORT"
+          echo "Make sure your ESP32-C6 is connected and in download mode"
+          echo "Press and hold BOOT button, press RESET, then release BOOT"
+          echo ""
+          read -p "Press Enter to continue or Ctrl+C to cancel..."
+          echo ""
+          
+          echo "Flashing complete firmware..."
+          if esptool.py --chip esp32c6 --port $PORT write_flash 0x0 monoscope-complete.bin; then
+              echo ""
+              echo "✅ Flashing successful!"
+              echo "Reset your ESP32-C6 to start the monoscope pattern."
+          else
+              echo ""
+              echo "❌ Flashing failed!"
+              echo "Check your connections and try again."
+              exit 1
+          fi
+          EOF
+          
+          chmod +x release/flash.sh
+          
+          # Create Windows flash batch file
+          cat > release/flash.bat << 'EOF'
+          @echo off
+          REM Flash script for ESP32-C6 Monoscope TV Pattern
+          REM Usage: flash.bat [PORT]
+          
+          set PORT=%1
+          if "%PORT%"=="" set PORT=COM3
+          
+          echo ======================================
+          echo ESP32-C6 Monoscope TV Pattern Flasher
+          echo ======================================
+          echo.
+          echo Port: %PORT%
+          echo Make sure your ESP32-C6 is connected and in download mode
+          echo Press and hold BOOT button, press RESET, then release BOOT
+          echo.
+          pause
+          echo.
+          
+          echo Flashing complete firmware...
+          esptool.py --chip esp32c6 --port %PORT% write_flash 0x0 monoscope-complete.bin
+          
+          if %ERRORLEVEL% equ 0 (
+              echo.
+              echo ✅ Flashing successful!
+              echo Reset your ESP32-C6 to start the monoscope pattern.
+          ) else (
+              echo.
+              echo ❌ Flashing failed!
+              echo Check your connections and try again.
+          )
+          
+          pause
+          EOF
+
+      - name: Create release archives
+        run: |
+          cd release
+          tar -czf ../monoscope-esp32c6-${{ github.ref_name }}.tar.gz *
+          zip -r ../monoscope-esp32c6-${{ github.ref_name }}.zip *
+
+      - name: Calculate checksums
+        run: |
+          sha256sum monoscope-esp32c6-${{ github.ref_name }}.tar.gz > checksums.txt
+          sha256sum monoscope-esp32c6-${{ github.ref_name }}.zip >> checksums.txt
+          sha256sum release/monoscope-complete.bin >> checksums.txt
+          sha256sum release/${{ env.PROJECT_NAME }}.bin >> checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: ESP32-C6 Monoscope TV Pattern ${{ github.ref_name }}
+          body: |
+            ## 📺 ESP32-C6 Monoscope TV Test Pattern ${{ github.ref_name }}
+            
+            Classic TV test pattern display with vintage effects for **ESP32-C6** and ILI9341 display.
+            
+            ### 📦 Download Options
+            - **monoscope-esp32c6-${{ github.ref_name }}.zip** - Complete package (Windows)
+            - **monoscope-esp32c6-${{ github.ref_name }}.tar.gz** - Complete package (Linux/macOS)
+            - **monoscope-complete.bin** - Ready-to-flash firmware (single file)
+            - **${{ env.PROJECT_NAME }}.bin** - Application binary only
+            
+            ### ⚡ Quick Flash (Easiest)
+            
+            **Option 1: Complete firmware (recommended)**
+            ```bash
+            # Install esptool if needed
+            pip install esptool
+            
+            # Flash complete firmware
+            esptool.py --chip esp32c6 --port /dev/ttyUSB0 write_flash 0x0 monoscope-complete.bin
+            ```
+            
+            **Option 2: Use included scripts**
+            1. Download and extract the archive
+            2. Run `./flash.sh /dev/ttyUSB0` (Linux/Mac) or `flash.bat COM3` (Windows)
+            
+            ### 🔧 Manual Flash (Advanced)
+            ```bash
+            esptool.py --chip esp32c6 --port /dev/ttyUSB0 --baud 460800 write_flash \
+              0x0 bootloader.bin \
+              0x8000 partition-table.bin \
+              0x10000 monoscope.bin
+            ```
+            
+            ### 📋 Hardware Requirements
+            - **ESP32-C6** development board
+            - **ILI9341** 320x240 TFT display (SPI interface)
+            - Proper wiring as documented in README.md
+            
+            ### 🎯 Features
+            - ✅ Classic monoscope TV test pattern
+            - ✅ SMPTE color bars and test signals
+            - ✅ Crosshairs and resolution test patterns
+            - ✅ Authentic TV static and noise effects
+            - ✅ Random vintage CRT flicker simulation
+            - ✅ Grayscale test bars
+            
+            ### 📊 Build Information
+            - **Target**: ESP32-C6
+            - **ESP-IDF**: ${{ env.ESP_IDF_VERSION }}
+            - **Build Date**: $(date -u)
+            - **Commit**: ${{ github.sha }}
+            
+            ### 🔍 File Verification
+            SHA256 checksums are provided in `checksums.txt` for integrity verification.
+            
+            ### 📚 Documentation
+            Full setup instructions: [README.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md)
+          files: |
+            monoscope-esp32c6-${{ github.ref_name }}.tar.gz
+            monoscope-esp32c6-${{ github.ref_name }}.zip
+            release/monoscope-complete.bin
+            release/${{ env.PROJECT_NAME }}.bin
+            checksums.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32c6-firmware-${{ github.sha }}
+          path: |
+            release/
+            checksums.txt
