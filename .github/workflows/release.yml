@@ -26,7 +26,6 @@ jobs:
         with:
           esp_idf_version: ${{ env.ESP_IDF_VERSION }}
           target: esp32c6
-          command: 'idf.py build'
 
       - name: Create merged firmware binary
         uses: espressif/esp-idf-ci-action@v1
@@ -35,20 +34,33 @@ jobs:
           target: esp32c6
           command: 'esptool.py --chip esp32c6 merge_bin -o build/monoscope-complete.bin --flash_mode dio --flash_freq 80m --flash_size 4MB 0x0 build/bootloader/bootloader.bin 0x8000 build/partition_table/partition-table.bin 0x10000 build/monoscope.bin'
 
-      - name: Get build info
+      - name: Get build size info
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: ${{ env.ESP_IDF_VERSION }}
           target: esp32c6
-          command: 'idf.py size > build_info.txt'
+          command: 'idf.py size'
 
       - name: Create build info file
         run: |
-          echo "Build Date: $(date)" >> build_info.txt
+          echo "ESP32-C6 Monoscope TV Test Pattern Build Information" > build_info.txt
+          echo "====================================================" >> build_info.txt
+          echo "" >> build_info.txt
+          echo "Build Date: $(date -u)" >> build_info.txt
           echo "ESP-IDF Version: ${{ env.ESP_IDF_VERSION }}" >> build_info.txt
           echo "Target: ESP32-C6" >> build_info.txt
           echo "Git Commit: ${{ github.sha }}" >> build_info.txt
           echo "Git Tag: ${{ github.ref_name }}" >> build_info.txt
+          echo "GitHub Repository: ${{ github.repository }}" >> build_info.txt
+          echo "" >> build_info.txt
+          echo "Firmware Files:" >> build_info.txt
+          echo "- monoscope-complete.bin : Complete firmware (bootloader + app + partitions)" >> build_info.txt
+          echo "- monoscope.bin          : Application binary only" >> build_info.txt
+          echo "- bootloader.bin         : ESP32-C6 bootloader" >> build_info.txt
+          echo "- partition-table.bin    : Partition table" >> build_info.txt
+          echo "" >> build_info.txt
+          echo "Build Statistics:" >> build_info.txt
+          ls -la build/ | grep -E '\.(bin|elf)$' >> build_info.txt
 
       - name: Prepare release artifacts
         run: |
@@ -96,6 +108,16 @@ jobs:
           - ESP32-C6 development board
           - ILI9341 320x240 TFT display (SPI)
           - Connections as per project README.md
+          
+          Pin Connections (ESP32-C6 to ILI9341):
+          ======================================
+          GPIO 6  -> SCK    (SPI Clock)
+          GPIO 7  -> MOSI   (SPI Data)
+          GPIO 20 -> CS     (Chip Select)
+          GPIO 21 -> DC     (Data/Command)
+          GPIO 3  -> RST    (Reset)
+          3.3V    -> VCC    (Power)
+          GND     -> GND    (Ground)
           EOF
           
           # Create flash script for ESP32-C6
@@ -224,6 +246,19 @@ jobs:
             - **ESP32-C6** development board
             - **ILI9341** 320x240 TFT display (SPI interface)
             - Proper wiring as documented in README.md
+            
+            ### 🔌 Pin Connections
+            ```
+            ESP32-C6    ILI9341     Function
+            --------    -------     --------
+            GPIO 6   -> SCK         SPI Clock
+            GPIO 7   -> MOSI        SPI Data
+            GPIO 20  -> CS          Chip Select
+            GPIO 21  -> DC          Data/Command
+            GPIO 3   -> RST         Reset
+            3.3V     -> VCC         Power
+            GND      -> GND         Ground
+            ```
             
             ### 🎯 Features
             - ✅ Classic monoscope TV test pattern
