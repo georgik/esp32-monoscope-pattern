@@ -21,39 +21,34 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup ESP-IDF
+      - name: Build project
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: ${{ env.ESP_IDF_VERSION }}
           target: esp32c6
+          command: 'idf.py build'
 
-      - name: Build project
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py build
+      - name: Create merged firmware binary
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.ESP_IDF_VERSION }}
+          target: esp32c6
+          command: 'esptool.py --chip esp32c6 merge_bin -o build/monoscope-complete.bin --flash_mode dio --flash_freq 80m --flash_size 4MB 0x0 build/bootloader/bootloader.bin 0x8000 build/partition_table/partition-table.bin 0x10000 build/monoscope.bin'
 
-      - name: Create build info
+      - name: Get build info
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.ESP_IDF_VERSION }}
+          target: esp32c6
+          command: 'idf.py size > build_info.txt'
+
+      - name: Create build info file
         run: |
-          echo "Build Date: $(date)" > build_info.txt
+          echo "Build Date: $(date)" >> build_info.txt
           echo "ESP-IDF Version: ${{ env.ESP_IDF_VERSION }}" >> build_info.txt
           echo "Target: ESP32-C6" >> build_info.txt
           echo "Git Commit: ${{ github.sha }}" >> build_info.txt
           echo "Git Tag: ${{ github.ref_name }}" >> build_info.txt
-          
-          # Get firmware size info
-          . $IDF_PATH/export.sh
-          idf.py size >> build_info.txt
-
-      - name: Create merged firmware binary
-        run: |
-          . $IDF_PATH/export.sh
-          
-          # Create a complete firmware image that can be flashed to 0x0
-          esptool.py --chip esp32c6 merge_bin -o build/monoscope-complete.bin \
-            --flash_mode dio --flash_freq 80m --flash_size 4MB \
-            0x0 build/bootloader/bootloader.bin \
-            0x8000 build/partition_table/partition-table.bin \
-            0x10000 build/${{ env.PROJECT_NAME }}.bin
 
       - name: Prepare release artifacts
         run: |
@@ -267,3 +262,4 @@ jobs:
           path: |
             release/
             checksums.txt
+          retention-days: 30

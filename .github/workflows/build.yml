@@ -3,9 +3,13 @@ name: Build Test
 on:
   push:
     branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:  # Allow manual triggering
+    paths:
+      - 'main/**'
+      - 'CMakeLists.txt'
+      - 'idf_component.yml'
+      - 'diagram.json'
+      - 'wokwi.toml'
+  workflow_dispatch:
 
 env:
   ESP_IDF_VERSION: 'v5.5-dev'

@@ -3,6 +3,11 @@
 A retro TV test pattern display project for ESP32 with ILI9341 SPI display, simulating classic monoscope broadcast test 
 patterns with old television effects.
 
+![ES32-C6 Monoscope](docs/images/esp32-monoscope.webp)
+
+The screenshot above is from [CLion](https://developer.espressif.com/blog/clion/) with 
+[Wokwi plugin](https://plugins.jetbrains.com/plugin/23826-wokwi-simulator).
+
 ## Overview
 
 This project draws ESP32 and ILI9341 display into a nostalgic TV test pattern generator, complete with:
