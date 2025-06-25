@@ -1,0 +1,7 @@
+
+.idea/
+build/
+dependencies.lock
+managed_components/
+sdkconfig
+
