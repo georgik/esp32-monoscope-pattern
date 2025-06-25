@@ -5,8 +5,10 @@ patterns with old television effects.
 
 ![ES32-C6 Monoscope](docs/images/esp32-monoscope.webp)
 
-The screenshot above is from [CLion](https://developer.espressif.com/blog/clion/) with 
+The screenshot above is from [CLion](https://developer.espressif.com/blog/clion/) with
 [Wokwi plugin](https://plugins.jetbrains.com/plugin/23826-wokwi-simulator).
+
+[Run the ESP32-C6 simulation on-line with Wokwi.com](https://wokwi.com/experimental/viewer?diagram=https%3A%2F%2Fraw.githubusercontent.com%2Fgeorgik%2Fesp32-monoscope-pattern%2Fmain%2Fdiagram.json&firmware=https%3A%2F%2Fgithub.com%2Fgeorgik%2Fesp32-monoscope-pattern%2Freleases%2Fdownload%2Fv0.2%2Fmonoscope-complete.bin)
 
 ## Overview
 
