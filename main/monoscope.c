@@ -37,8 +37,6 @@ static const char *TAG = "monoscope-tv";
 #define COLOR_MAGENTA   RGB565(31, 0, 31)   // Magenta
 
 static esp_lcd_panel_handle_t panel_handle = NULL;
-static rmt_channel_handle_t led_chan = NULL;
-static rmt_encoder_handle_t led_encoder = NULL;
 
 static void init_display(void)
 {
