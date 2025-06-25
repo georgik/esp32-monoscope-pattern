@@ -5,7 +5,7 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch:  # Allow manual triggering
 
 env:
   ESP_IDF_VERSION: 'v5.5-dev'
@@ -21,18 +21,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup ESP-IDF
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: ${{ env.ESP_IDF_VERSION }}
-          target: esp32c6
-
       - name: Build project
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: ${{ env.ESP_IDF_VERSION }}
           target: esp32c6
-          command: 'idf.py build'
 
       - name: Test with Wokwi
         uses: wokwi/wokwi-ci-action@v1
@@ -42,12 +35,26 @@ jobs:
           expect_text: 'Drawing monoscope TV test pattern'
           timeout: 10000
 
-      - name: Upload build artifacts (for testing)
+      - name: Take LCD screenshot
+        run: |
+          mkdir -p screenshots
+          wokwi-cli --timeout 8000 --timeout-exit-code 0 --screenshot-part "lcd1" --screenshot-time 7000 --screenshot-file "screenshots/monoscope-pattern.png" "${GITHUB_WORKSPACE}"
+        env:
+          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
-        if: github.event_name == 'pull_request'
         with:
-          name: test-build-${{ github.sha }}
+          name: build-artifacts-${{ github.sha }}
           path: |
             build/${{ env.PROJECT_NAME }}.bin
             build/${{ env.PROJECT_NAME }}.elf
-          retention-days: 1
+            screenshots/monoscope-pattern.png
+          retention-days: 7
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcd-screenshot-${{ github.sha }}
+          path: screenshots/monoscope-pattern.png
+          retention-days: 7
